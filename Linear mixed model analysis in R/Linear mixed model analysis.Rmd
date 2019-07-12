@@ -1,0 +1,314 @@
+# Linear mixed model analysis of the helpfulness of features of online product reviews  
+
+## Section 1  
+
+### Introduction  
+In this study, we examined the features of online reviews to determine which were helpful to customers. The two hypotheses were: identity disclosure and review extremity are positively related to helpfulness. Hence, the 3 independent variables were identity disclosure with 2 levels (anonymous vs identified); extremity with 2 levels (high vs low); and product type with two levels (search vs experience). Disclosure was manipulated between subjects while extremity and product type were manipulated within subjects. The dependent variable was participants' rating  on a 0-10 scale. To investigate this, a linear mixed model analysis with crossed random effects for participants and product was implemented with the maximal random effects structure justified by design. This included by participant random intercepts and by participant random slopes for product type and extremity and their interaction, and by product random intercepts and by extremity and disclosure random slopes and their interaction. The Satterthwaite and Bonferroni-Holm methods were used to control for Type I errors for fitting the mixed models and multiple comparisons for the follow-up analyses.  
+
+### Summary  
+
+```{r include = FALSE}
+library("tidyverse")
+library("afex")
+library("emmeans")
+library("cowplot")
+theme_set(theme_bw(base_size = 15) + 
+            theme(legend.position="bottom", 
+                  panel.grid.major.x = element_blank(),
+                  panel.grid.minor.x = element_blank()))
+options(digits = 3)
+set_sum_contrasts()
+
+# Setting up and preparing
+helpf <- read_csv("helpfulness.csv") 
+
+helpf <- helpf %>% 
+  mutate(product_type = factor(product_type, 
+                         levels = c("experience", 
+                                    "search")),
+         extremity = factor(extremity,
+                          levels = c("low", "high")),
+         disclosure = factor(disclosure,
+                             levels = c("anonymous", "identified")),
+         participant = factor(participant),
+         product = factor(product))
+maximal <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                   (product_type * extremity|participant) + 
+                   (extremity * disclosure|product), data = helpf,
+                 method = "S")
+helpf$residuals <- residuals(maximal$full_model)
+```
+```{r echo = FALSE}
+ggplot(helpf, aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_bw() +
+  theme(text = element_text(size = 18))
+```
+
+*Fig 1.* Quantile-quantile plot of the theoretical distribution against the distribution from the maximal mixed model.  
+
+The qqplot shows a fat positive skew and a slightly thin negative skew but overall, the normality assumption does not appear to be violated for the maximal model. As this maximal model gave a singular fit warning and showed evidence of correlation, the random-effects structure was itecratively reduced until no more onvergence issues surfaced. While suppressing correlations among the random slope produced a singular fit warning for the reduced2 model, all models produced similar *F* and *p* values (refer to Section 2). Hence, we will take reduced model 3 as the final model with by participant random intercepts and slopes for product type and extremity and by product random intercepts and slopes for extremity and disclosure.  
+
+The final model showed a significant main effect of extremity ***F*(1, 40.66) = 5.88, *p* < 0.05** and disclosure ***F*(1, 38.10) = 7.93, *p* < 0.01**. The two-way interactions between product type and extremity ***F*(1, 24.26) = 27.24, *p* < 0.0001** and product type and disclosure were also significant ***F*(1, 30.86) = 4.54, *p* < 0.05**.
+
+```{r include = FALSE}
+reduced3 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                    (product_type * extremity||participant) + 
+                    (extremity * disclosure||product), helpf,
+                  method = "S", expand_re = TRUE)
+```
+
+```{r echo=FALSE, message = FALSE}
+plot_grid( 
+  afex_plot(reduced3, x = "extremity", trace = "product_type", random = "participant",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(extremity = c("Low", "High")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "extremity", trace = "product_type", random = "product",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(extremity = c("Low", "High")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "disclosure", trace = "product_type", random = "participant",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(disclosure = c("Anonymous", "Identified")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "disclosure", trace = "product_type", random = "product",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(disclosure = c("Anonymous", "Identified")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  labels = c("Participant", "Product", "Participant", "Product"), 
+  ncol = 2, label_size = 12, vjust = 0.8, hjust = -1)
+```
+  
+*Fig 2.* Helpfulness by review rating extremity and identity disclosure by grouping factors participant and product.
+
+Examining figure 2, it appears that the helpfulness of reviews with high and low extremity vary by product type; while reviews with a unique name and picture are more helpful for experience products than search products.  
+  
+#### Hypothesis 1: Disclosure of identity on helpfulness  
+Follow-up analyses concurred with the two hypotheses in the beginning - identity disclosure and review extremity were positively related to helpfulness. However, this effect was modulated by the type of product that the review was made on. Reviews with identified reviewers were rated significantly more helpful (***M* = 6.70, *SE* = 0.23**) than anonymous reviews (***M* = 5.61, *SE* = 0.23**) for experience products (***t*(55.3) = -3.52, *p* < 0.001**). There was no significant effect of disclosure on helpfulness for search products (***p*> 0.05**). This suggests that consumers value reviews of other consumers who have engaged with the product they were interested in when evaluating product quality has to be a personal experience. Reviews with a unique name and picture help in identifying a reviewer as another consumer, leading to a higher helpfulness rating.  
+  
+#### Hypothesis 2: Review rating extremity on helpfulness  
+Reviews with extreme ratings (i.e. 1 or 5 stars) were rated as significantly more helpful (***M* = 6.92, *SE* = 0.23**) than reviews with non-extreme ratings of 2, 3 and 4 stars (***M* = 5.44, *SE* = 0.23**) for search products. There was no significant effect of review rating extremity for experience products (***p*> 0.05**). This suggests that consumers interested in products where information is easily acquired and compared prefer reviews that are extreme to help them differentiate between similar products.
+  
+## Section 2  
+
+```{r message = FALSE}
+library("tidyverse")
+library("afex")
+library("emmeans")
+library("cowplot")
+theme_set(theme_bw(base_size = 15) + 
+            theme(legend.position="bottom", 
+                  panel.grid.major.x = element_blank(),
+                  panel.grid.minor.x = element_blank()))
+options(digits = 3)
+```
+
+
+```{r message = FALSE}
+# Setting up and preparing
+helpf <- read_csv("helpfulness.csv") 
+
+helpf <- helpf %>% 
+  mutate(product_type = factor(product_type, 
+                         levels = c("experience", 
+                                    "search")),
+         extremity = factor(extremity,
+                          levels = c("low", "high")),
+         disclosure = factor(disclosure,
+                             levels = c("anonymous", "identified")),
+         participant = factor(participant),
+         product = factor(product))
+
+str(helpf)
+# returns an array of rows and cols with missing data
+which(is.na(helpf), arr.ind=T) # no missing data
+```
+
+```{r message = FALSE}
+# maximal random effects structure with singular fit
+maximal <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                   (product_type * extremity|participant) + 
+                   (extremity * disclosure|product), data = helpf,
+                 method = "S")
+```
+```{r}
+summary(maximal)$varcor
+```
+
+```{r}
+maximal
+```
+
+```{r}
+# plotting residuals
+helpf$residuals <- residuals(maximal$full_model)
+ggplot(helpf, aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_bw() +
+  theme(text = element_text(size = 18))
+```
+```{r message = FALSE}
+# removing product correlation removes singular fit warning
+reduced1 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                   (product_type * extremity|participant) + 
+                   (extremity * disclosure||product), helpf,
+                 method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced1)$varcor
+```
+
+```{r}
+reduced1
+```
+
+```{r message = FALSE}
+# removing participant correlation retains the singular fit warning
+reduced2 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                   (product_type * extremity||participant) + 
+                   (extremity * disclosure|product), helpf,
+                 method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced2)$varcor
+```
+
+```{r}
+reduced2
+```
+
+```{r message = FALSE}
+# removing both correlations removes singular fit warning again
+reduced3 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                    (product_type * extremity||participant) + 
+                    (extremity * disclosure||product), helpf,
+                  method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced3)$varcor
+```
+
+```{r}
+reduced3
+```
+
+```{r message = FALSE}
+# further removing extremity-disclosure interaction
+reduced4 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                    (product_type * extremity||participant) + 
+                    (extremity + disclosure||product), helpf,
+                  method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced4)$varcor
+```
+
+```{r}
+reduced4
+```
+
+```{r message = FALSE}
+# further removing producttype-extremity interaction
+reduced5 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                    (product_type + extremity||participant) + 
+                    (extremity * disclosure||product), helpf,
+                  method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced5)$varcor
+```
+
+```{r}
+reduced5
+```
+
+```{r message = FALSE}
+# further removing all interactions
+reduced6 <- mixed(helpfulness ~ product_type * extremity * disclosure +
+                    (product_type + extremity||participant) + 
+                    (extremity + disclosure||product), helpf,
+                  method = "S", expand_re = TRUE)
+```
+
+```{r}
+summary(reduced6)$varcor
+```
+
+```{r}
+reduced6
+```
+
+```{r message = FALSE}
+# looking at the data
+plot_grid( 
+  afex_plot(reduced3, x = "extremity", trace = "product_type", random = "participant",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(extremity = c("Low", "High")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "extremity", trace = "product_type", random = "product",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(extremity = c("Low", "High")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "disclosure", trace = "product_type", random = "participant",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(disclosure = c("Anonymous", "Identified")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  afex_plot(reduced3, x = "disclosure", trace = "product_type", random = "product",
+            dodge = 0.8,
+            data_geom = geom_violin, 
+            data_arg = list(width = 0.8),
+            mapping = c("fill", "shape"),
+            factor_levels = list(disclosure = c("Anonymous", "Identified")),
+            legend_title = "Product Type") +
+    labs(x = "Review Extremity", y = "Helpfulness"),
+  labels = c("Participant", "Product", "Participant", "Product"), 
+  ncol = 2, label_size = 12, vjust = 0.2, hjust = -1)
+```
+
+```{r message = FALSE}
+# further analysis using emmeans
+emmeans(reduced3, "extremity", by = "product_type")
+pairs(emmeans(reduced3, "extremity", by = "product_type"), adjust = "holm")
+```
+
+```{r message = FALSE}
+emmeans(reduced3, "disclosure", by = "product_type")
+pairs(emmeans(reduced3, "disclosure", by = "product_type"), adjust = "holm")
+```
+
